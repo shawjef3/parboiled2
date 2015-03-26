@@ -16,19 +16,26 @@
 
 package org.parboiled2
 
-class MetaRuleSpec extends TestParserSpec {
+import scala.util.Success
+import org.specs2.mutable.Specification
 
-  "Meta rules" should {
+class StringBuildingSpec extends Specification {
 
-    "work as expected" in new TestParser0 {
-      val targetRule = rule { bracketed1(ab) ~ bracketed2(cd) }
-      val ab = rule { "ab" }
-      val cd = rule { "cd" }
-      val bracketed1 = rule[Rule0]() { inner ⇒ '[' ~ inner ~ ']' }
-      def bracketed2(inner: Rule0) = rule { '[' ~ inner ~ ']' }
+  object TestParser extends Parser {
+    class Context extends StringBuilding.Context {
+      var count = 0 // some custom member
+    }
 
-      "[ab][cd]" must beMatched
-      "abcd" must beMismatched
+    val foo = rule {
+      "foo" ~ run(ctx.count += 1) ~ 'X' ~ StringBuilding.appendLastChar ~ bar ~ EOI ~ push(ctx.sb.toString)
+    }
+    val bar = rule { "bar" ~ StringBuilding.appendString("BAR") }
+  }
+
+  "StringBuilding" should {
+
+    "work as expected " in {
+      TestParser.foo.runWithContext("fooXbar", new TestParser.Context) === Success("XBAR")
     }
   }
 }
