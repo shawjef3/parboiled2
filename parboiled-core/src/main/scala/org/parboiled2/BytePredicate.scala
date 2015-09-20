@@ -117,6 +117,8 @@ object BytePredicate {
 
   class ApplyMagnet(val predicate: BytePredicate)
   object ApplyMagnet {
+    implicit def fromIntegral[N: Numeric](n: N): ApplyMagnet = fromBytes(Seq(implicitly[Numeric[N]].toInt(n).toByte))
+    implicit def fromBoxedByte(byte: Byte): ApplyMagnet = fromBoxedBytes(Seq(byte))
     implicit def fromPredicate(predicate: Byte ⇒ Boolean): ApplyMagnet = new ApplyMagnet(from(predicate))
     implicit def fromByteVector(vector: ByteVector): ApplyMagnet = fromBytes(vector.toSeq)
     implicit def fromRange(range: Range): ApplyMagnet = new ApplyMagnet(new RangeBased(range))
