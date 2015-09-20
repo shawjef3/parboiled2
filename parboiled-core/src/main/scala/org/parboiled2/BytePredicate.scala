@@ -21,18 +21,22 @@ import scodec.bits.ByteVector
 import scala.annotation.tailrec
 import scala.collection.immutable.NumericRange
 
+import java.lang.Byte
+
 sealed abstract class BytePredicate extends (Byte ⇒ Boolean) {
   import BytePredicate._
 
   def ++(that: BytePredicate): BytePredicate
-  def ++(bytes: Seq[Byte]): BytePredicate
   def --(that: BytePredicate): BytePredicate
+  def ++(bytes: Seq[Byte]): BytePredicate
   def --(bytes: Seq[Byte]): BytePredicate
 
-  def ++(byte: Byte): BytePredicate = this ++ (byte :: Nil)
-  def --(byte: Byte): BytePredicate = this -- (byte :: Nil)
-  def ++(vector: ByteVector): BytePredicate = this ++ vector.toArray
-  def --(vector: ByteVector): BytePredicate = this -- vector.toArray
+  def ++(byte: Byte): BytePredicate = this ++ Seq(byte)
+  def --(byte: Byte): BytePredicate = this -- Seq(byte)
+  def ++(byte: scala.Byte): BytePredicate = this ++ Byte.valueOf(byte)
+  def --(byte: scala.Byte): BytePredicate = this -- Byte.valueOf(byte)
+  def ++(vector: ByteVector): BytePredicate = this ++ vector.toSeq.map(Byte.valueOf)
+  def --(vector: ByteVector): BytePredicate = this -- vector.toSeq.map(Byte.valueOf)
 
   def intersect(that: BytePredicate): BytePredicate
 
@@ -87,19 +91,20 @@ sealed abstract class BytePredicate extends (Byte ⇒ Boolean) {
 }
 
 object BytePredicate {
+
   val Empty: BytePredicate = from(_ ⇒ false)
   val All: BytePredicate = from(_ ⇒ true)
-  val LowerAlpha = BytePredicate(('a' to 'z').map(_.toByte))
-  val UpperAlpha = BytePredicate(('A' to 'Z').map(_.toByte))
+  val LowerAlpha = BytePredicate(new RangeBased('a'.toInt to 'z'.toInt))
+  val UpperAlpha = BytePredicate(new RangeBased('A'.toInt to 'Z'.toInt))
   val Alpha = LowerAlpha ++ UpperAlpha
-  val Digit = BytePredicate(('0' to '9').map(_.toByte))
-  val Digit19 = BytePredicate(('1' to '9').map(_.toByte))
+  val Digit = BytePredicate(new RangeBased('0'.toInt to '9'.toInt))
+  val Digit19 = BytePredicate(new RangeBased('1'.toInt to '9'.toInt))
   val AlphaNum = Alpha ++ Digit
-  val LowerHexLetter = BytePredicate(('a' to 'f').map(_.toByte))
-  val UpperHexLetter = BytePredicate(('A' to 'F').map(_.toByte))
+  val LowerHexLetter = BytePredicate(new RangeBased('a'.toInt to 'f'.toInt))
+  val UpperHexLetter = BytePredicate(new RangeBased('A'.toInt to 'F'.toInt))
   val HexLetter = LowerHexLetter ++ UpperHexLetter
   val HexDigit = Digit ++ HexLetter
-  val Visible = BytePredicate(('\u0021' to '\u007e').map(_.toByte))
+  val Visible = BytePredicate(new RangeBased('\u0021'.toInt to '\u007e'.toInt))
   val Printable = Visible ++ ' '.toByte
 
   def from(predicate: Byte ⇒ Boolean): BytePredicate =
@@ -114,11 +119,15 @@ object BytePredicate {
   object ApplyMagnet {
     implicit def fromPredicate(predicate: Byte ⇒ Boolean): ApplyMagnet = new ApplyMagnet(from(predicate))
     implicit def fromByteVector(vector: ByteVector): ApplyMagnet = fromBytes(vector.toSeq)
-    implicit def fromIntegral[I: Integral](b: I*): ApplyMagnet = fromBytes(ByteVector(b: _*).toSeq)
     implicit def fromRange(range: Range): ApplyMagnet = new ApplyMagnet(new RangeBased(range))
-    implicit def fromBytes(vector: Seq[Byte]): ApplyMagnet =
+    implicit def fromBytes(vector: Seq[scala.Byte]): ApplyMagnet =
       vector match {
-        case r: NumericRange[Byte] ⇒ new ApplyMagnet(new RangeBased(new Range(r.start, r.end, r.step)))
+        case r: NumericRange[scala.Byte] ⇒ new ApplyMagnet(new RangeBased(Range(r.start.toInt, r.end.toInt, r.step.toInt)))
+        case _                           ⇒ fromBoxedBytes(vector.map(Byte.valueOf))
+      }
+    implicit def fromBoxedBytes(vector: Seq[Byte]): ApplyMagnet =
+      vector match {
+        case r: NumericRange[Byte] ⇒ new ApplyMagnet(new RangeBased(Range(r.start.toInt, r.end.toInt, r.step.toInt)))
         case _                     ⇒ new ApplyMagnet(new ArrayBased(vector.toArray))
       }
   }
@@ -126,7 +135,7 @@ object BytePredicate {
   ///////////////////////// PRIVATE ////////////////////////////
 
   class RangeBased private[BytePredicate] (private val range: Range) extends BytePredicate {
-    def apply(c: Byte): Boolean = range contains c.toInt
+    def apply(b: Byte): Boolean = range contains b.toInt
 
     def ++(that: BytePredicate): BytePredicate = that match {
       case Empty ⇒ this
@@ -151,38 +160,61 @@ object BytePredicate {
       s"step = ${range.step.toInt}, inclusive = ${range.isInclusive})"
   }
 
-  class ArrayBased private[BytePredicate] (private val bytes: Array[Byte]) extends BytePredicate {
+  class ArrayBased private[BytePredicate] (private val boxedBytes: Array[java.lang.Byte]) extends BytePredicate {
     import java.util.Arrays._
+    val eoiCount = boxedBytes.filter(_ == null).size // .count(null) throws NullPointerException
+    val hasEOI = eoiCount > 0
+
+    private val bytes = Array.ofDim[scala.Byte](boxedBytes.length - eoiCount)
+
+    {
+      var i = 0
+      var boxedI = 0
+      while (boxedI < boxedBytes.length) {
+        if (boxedBytes(boxedI) != null) {
+          bytes(i) = boxedBytes(boxedI)
+          i += 1
+        }
+        boxedI += 1
+      }
+    }
+
     sort(bytes)
 
-    // TODO: switch to faster binary search algorithm with an adaptive pivot, e.g. http://ochafik.com/blog/?p=106
-    def apply(c: Byte): Boolean = binarySearch(bytes, c) >= 0
+    def apply(c: Byte): Boolean = {
+      (c == null && hasEOI) ||
+        binarySearch(bytes, c.byteValue()) >= 0
+    }
 
     def ++(that: BytePredicate): BytePredicate = that match {
       case Empty         ⇒ this
-      case x: ArrayBased ⇒ this ++ x.bytes
+      case x: ArrayBased ⇒ this ++ boxedBytes
       case _             ⇒ this or that
     }
 
     def ++(other: Seq[Byte]): BytePredicate =
-      if (other.nonEmpty) new ArrayBased((this -- other).bytes ++ other.toArray[Byte])
-      else this
+      if (other.nonEmpty) {
+        val union = boxedBytes.toSet ++ other.toSet
+        new ArrayBased(union.toArray)
+      } else this
 
     def --(that: BytePredicate): BytePredicate = that match {
       case Empty         ⇒ this
-      case x: ArrayBased ⇒ this -- x.bytes
+      case x: ArrayBased ⇒ this -- x.boxedBytes
       case _             ⇒ this andNot that
     }
 
     def --(other: Seq[Byte]): ArrayBased =
       if (other.nonEmpty) {
-        val otherChars = other.toArray
-        new ArrayBased(bytes.filter(binarySearch(otherChars, _) < 0))
+        val difference = boxedBytes.toSet -- other.toSet
+        new ArrayBased(difference.toArray)
       } else this
 
     def intersect(that: BytePredicate): BytePredicate = that match {
       case Empty         ⇒ Empty
-      case x: ArrayBased ⇒ new ArrayBased(bytes.intersect(x.bytes))
+      case x: ArrayBased ⇒
+        val intersection = boxedBytes.toSet.intersect(x.boxedBytes.toSet)
+        new ArrayBased(intersection.toArray)
       case _             ⇒ this and that
     }
 
