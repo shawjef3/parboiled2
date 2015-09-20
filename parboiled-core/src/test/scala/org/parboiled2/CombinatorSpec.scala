@@ -16,69 +16,71 @@
 
 package org.parboiled2
 
+import scodec.bits.ByteVector
+
 class CombinatorSpec extends TestParserSpec {
 
   "The Parser should correctly recognize/reject input for the" >> {
 
     "`~` combinator" in new TestParser0 {
-      val targetRule = rule { 'a' ~ 'b' }
-      "" must beMismatched
-      "ab" must beMatched
-      "ac" must beMismatched
-      "a" must beMismatched
-      "b" must beMismatched
+      val targetRule = rule { 0 ~ 1 }
+      ByteVector.empty must beMismatched
+      ByteVector(0, 1) must beMatched
+      ByteVector(0, 2) must beMismatched
+      ByteVector(0) must beMismatched
+      ByteVector(1) must beMismatched
     }
 
     "`|` combinator" in new TestParser0 {
-      val targetRule = rule { ch('a') | 'b' }
-      "" must beMismatched
-      "a" must beMatched
-      "b" must beMatched
-      "c" must beMismatched
+      val targetRule = rule { 0 | 1 }
+      ByteVector.empty must beMismatched
+      ByteVector(0) must beMatched
+      ByteVector(1) must beMatched
+      ByteVector(2) must beMismatched
     }
 
     "`zeroOrMore(Rule0)` modifier" in new TestParser0 {
-      val targetRule = rule { zeroOrMore("a") ~ EOI }
-      "" must beMatched
-      "a" must beMatched
-      "aa" must beMatched
-      "b" must beMismatched
+      val targetRule = rule { zeroOrMore(0) ~ EOI }
+      ByteVector.empty must beMatched
+      ByteVector(0) must beMatched
+      ByteVector(0, 0) must beMatched
+      ByteVector(1) must beMismatched
     }
 
     "`Rule0.*` modifier" in new TestParser0 {
-      val targetRule = rule { str("a").* ~ EOI }
-      "" must beMatched
-      "a" must beMatched
-      "aa" must beMatched
-      "b" must beMismatched
+      val targetRule = rule { 0.* ~ EOI }
+      ByteVector.empty must beMatched
+      ByteVector(0) must beMatched
+      ByteVector(0, 0) must beMatched
+      ByteVector(1) must beMismatched
     }
 
     "`zeroOrMore(Rule0).separatedBy('|')` modifier" in new TestParser0 {
-      val targetRule = rule { zeroOrMore("a").separatedBy('|') ~ EOI }
-      "" must beMatched
-      "a" must beMatched
-      "a|a" must beMatched
-      "a|a|" must beMismatched
-      "aa" must beMismatched
-      "b" must beMismatched
+      val targetRule = rule { zeroOrMore(0).separatedBy(1) ~ EOI }
+      ByteVector.empty must beMatched
+      ByteVector(0) must beMatched
+      ByteVector(0, 1, 0) must beMatched
+      ByteVector(0, 1, 0, 1) must beMismatched
+      ByteVector(0, 0) must beMismatched
+      ByteVector(1) must beMismatched
     }
 
     "`Rule0.*.sep('|')` modifier" in new TestParser0 {
-      val targetRule = rule { str("a").*('|') ~ EOI }
-      "" must beMatched
-      "a" must beMatched
-      "a|a" must beMatched
-      "a|a|" must beMismatched
-      "aa" must beMismatched
-      "b" must beMismatched
+      val targetRule = rule { 0.*(1) ~ EOI }
+      ByteVector.empty must beMatched
+      ByteVector(0) must beMatched
+      ByteVector(0, 1, 0) must beMatched
+      ByteVector(0, 1, 0, 1) must beMismatched
+      ByteVector(0, 0) must beMismatched
+      ByteVector(1) must beMismatched
     }
 
-    "`zeroOrMore(Rule1[T])` modifier" in new TestParser1[Seq[String]] {
-      val targetRule = rule { zeroOrMore(capture("a")) ~ EOI }
-      "a" must beMatchedWith(Seq("a"))
-      "aa" must beMatchedWith(Seq("a", "a"))
-      "b" must beMismatched
-      "" must beMatchedWith(Seq.empty)
+    "`zeroOrMore(Rule1[T])` modifier" in new TestParser1[Seq[ByteVector]] {
+      val targetRule = rule { zeroOrMore(capture(0)) ~ EOI }
+      ByteVector(0) must beMatchedWith(Seq(ByteVector(0)))
+      ByteVector(0, 0) must beMatchedWith(Seq(ByteVector(0), ByteVector(0)))
+      ByteVector(1) must beMismatched
+      ByteVector.empty must beMatchedWith(Seq.empty)
     }
 
     "`zeroOrMore(Rule[I, O <: I])` modifier" in new TestParser1[String] {
