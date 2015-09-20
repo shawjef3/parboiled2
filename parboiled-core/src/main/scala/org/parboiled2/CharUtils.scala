@@ -145,7 +145,7 @@ object CharUtils {
 
     phase1(math.abs(long), endIndex)
 
-    // for large numbers we bite the bullet of performing one division every two digits 
+    // for large numbers we bite the bullet of performing one division every two digits
     @tailrec def phase1(l: Long, ix: Int): Unit =
       if (l > 65535L) {
         val q = l / 100
@@ -166,29 +166,9 @@ object CharUtils {
     }
   }
 
-  /**
-   * Efficiently lower-cases the given character.
-   * Note: only works for 7-bit ASCII letters.
-   */
-  def toLowerCase(c: Char): Char = if (CharPredicate.UpperAlpha(c)) (c + 0x20).toChar else c
-
-  /**
-   * Efficiently upper-cases the given character.
-   * Note: only works for 7-bit ASCII letters.
-   */
-  def toUpperCase(c: Char): Char = if (CharPredicate.LowerAlpha(c)) (c + 0x20).toChar else c
-
-  def escape(c: Char): String = c match {
-    case '\t'                           ⇒ "\\t"
-    case '\r'                           ⇒ "\\r"
-    case '\n'                           ⇒ "\\n"
-    case EOI                            ⇒ "EOI"
-    case x if Character.isISOControl(x) ⇒ "\\u%04x" format c.toInt
-    case x                              ⇒ x.toString
+  def escape(b: java.lang.Byte): String = {
+    Option(b).map(_.toString).getOrElse("EOI")
   }
 
-  val escapedChars = CharPredicate("\t\r\n", EOI, Character.isISOControl _)
-
-  def escape(s: String): String =
-    if (escapedChars.matchesAny(s)) s.flatMap(escape(_: Char)) else s
+  def escape(s: String): String = s
 }

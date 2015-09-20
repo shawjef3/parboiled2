@@ -52,7 +52,7 @@ trait RuleDSLBasics { this: RuleTypes ⇒
    * Matches any (single) character matched by the given `CharPredicate`.
    */
   @compileTimeOnly("Calls to `predicate` must be inside `rule` macro")
-  implicit def predicate(p: CharPredicate): Rule0 = `n/a`
+  implicit def predicate(p: BytePredicate): Rule0 = `n/a`
 
   /**
    * Matches any of the given maps keys and pushes the respective value upon
@@ -66,7 +66,7 @@ trait RuleDSLBasics { this: RuleTypes ⇒
    *
    * Note: This helper has O(n) runtime with n being the length of the given string.
    * If your string consists only of 7-bit ASCII chars using a pre-allocated
-   * [[CharPredicate]] will be more efficient.
+   * [[BytePredicate]] will be more efficient.
    */
   @compileTimeOnly("Calls to `anyOf` must be inside `rule` macro")
   def anyOf(chars: String): Rule0 = `n/a`
@@ -76,7 +76,7 @@ trait RuleDSLBasics { this: RuleTypes ⇒
    *
    * Note: This helper has O(n) runtime with n being the length of the given string.
    * If your string consists only of 7-bit ASCII chars using a pre-allocated
-   * [[CharPredicate]] will be more efficient.
+   * [[BytePredicate]] will be more efficient.
    */
   @compileTimeOnly("Calls to `noneOf` must be inside `rule` macro")
   def noneOf(chars: String): Rule0 = `n/a`
@@ -104,9 +104,9 @@ trait RuleDSLBasics { this: RuleTypes ⇒
   def ANY: Rule0 = `n/a`
 
   /**
-   * Matches the EOI (end-of-input) character.
+   * Matches the EOI (end-of-input) byte.
    */
-  def EOI: Char = org.parboiled2.EOI
+  def EOI: java.lang.Byte = org.parboiled2.EOI
 
   /**
    * Matches no character (i.e. doesn't cause the parser to make any progress) but succeeds always (as a rule).

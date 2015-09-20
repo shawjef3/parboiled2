@@ -14,13 +14,16 @@ object Macros {
   type Context3[A, B, C] = Context { type PrefixType = Parser#RuleCreator3[A, B, C] }
 
   def rule0[Ctx: ctx.WeakTypeTag, I <: HList: ctx.WeakTypeTag, O <: HList: ctx.WeakTypeTag](ctx: Context)(
-    r: ctx.Expr[Rule[Ctx, I, O]]): ctx.Tree = rule0Impl(ctx)(r, debug = false)
+    r: ctx.Expr[Rule[Ctx, I, O]]
+  ): ctx.Tree = rule0Impl(ctx)(r, debug = false)
 
   def debugRule0[Ctx: ctx.WeakTypeTag, I <: HList: ctx.WeakTypeTag, O <: HList: ctx.WeakTypeTag](ctx: Context)(
-    r: ctx.Expr[Rule[Ctx, I, O]]): ctx.Tree = rule0Impl(ctx)(r, debug = true)
+    r: ctx.Expr[Rule[Ctx, I, O]]
+  ): ctx.Tree = rule0Impl(ctx)(r, debug = true)
 
   private def rule0Impl[Ctx: ctx.WeakTypeTag, I <: HList: ctx.WeakTypeTag, O <: HList: ctx.WeakTypeTag](ctx: Context)(
-    r: ctx.Expr[Rule[Ctx, I, O]], debug: Boolean): ctx.Tree = {
+    r: ctx.Expr[Rule[Ctx, I, O]], debug: Boolean
+  ): ctx.Tree = {
     import ctx.universe._
     val opTreeCtx = new OpTreeContext[ctx.type](ctx)
     import opTreeCtx._
@@ -40,7 +43,8 @@ object Macros {
   }
 
   def rule1[Ctx: ctx.WeakTypeTag, A: ctx.WeakTypeTag, I <: HList: ctx.WeakTypeTag, O <: HList: ctx.WeakTypeTag](
-    ctx: Context1[A])(r: ctx.Expr[A ⇒ Rule[Ctx, I, O]]): ctx.Tree = {
+    ctx: Context1[A]
+  )(r: ctx.Expr[A ⇒ Rule[Ctx, I, O]]): ctx.Tree = {
     import ctx.universe._
     val opTreeCtx = new OpTreeContext[ctx.type](ctx)
     import opTreeCtx._
@@ -66,7 +70,8 @@ object Macros {
   }
 
   def rule2[Ctx: ctx.WeakTypeTag, A: ctx.WeakTypeTag, B: ctx.WeakTypeTag, I <: HList: ctx.WeakTypeTag, O <: HList: ctx.WeakTypeTag](
-    ctx: Context2[A, B])(r: ctx.Expr[(A, B) ⇒ Rule[Ctx, I, O]]): ctx.Tree = {
+    ctx: Context2[A, B]
+  )(r: ctx.Expr[(A, B) ⇒ Rule[Ctx, I, O]]): ctx.Tree = {
     import ctx.universe._
     val opTreeCtx = new OpTreeContext[ctx.type](ctx)
     import opTreeCtx._
@@ -93,7 +98,8 @@ object Macros {
   }
 
   def rule3[Ctx: ctx.WeakTypeTag, A: ctx.WeakTypeTag, B: ctx.WeakTypeTag, C: ctx.WeakTypeTag, I <: HList: ctx.WeakTypeTag, O <: HList: ctx.WeakTypeTag](
-    ctx: Context3[A, B, C])(r: ctx.Expr[(A, B, C) ⇒ Rule[Ctx, I, O]]): ctx.Tree = {
+    ctx: Context3[A, B, C]
+  )(r: ctx.Expr[(A, B, C) ⇒ Rule[Ctx, I, O]]): ctx.Tree = {
     import ctx.universe._
     val opTreeCtx = new OpTreeContext[ctx.type](ctx)
     import opTreeCtx._

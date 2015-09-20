@@ -29,7 +29,9 @@ trait RuleDSLActions { this: RuleTypes ⇒
    */
   @compileTimeOnly("Calls to `capture` must be inside `rule` macro")
   def capture[C, I <: HList, O <: HList](r: Rule[C, I, O])(
-    implicit p: Prepend[O, String :: HNil]): Rule[C, I, p.Out] = `n/a`
+    implicit
+    p: Prepend[O, String :: HNil]
+  ): Rule[C, I, p.Out] = `n/a`
 
   /**
    * Implements a semantic predicate. If the argument expression evaluates to `true` the created
@@ -83,7 +85,9 @@ trait RuleDSLActions { this: RuleTypes ⇒
 
   @compileTimeOnly("Calls to `rule2ActionOperator` must be inside `rule` macro")
   implicit def rule2ActionOperator[C <: Context, I <: HList, O <: HList](r: Rule[C, I, O])(
-    implicit ops: ActionOps[C, I, O]): ActionOperator[I, O, ops.Out] = `n/a`
+    implicit
+    ops: ActionOps[C, I, O]
+  ): ActionOperator[I, O, ops.Out] = `n/a`
 
   sealed trait ActionOperator[I <: HList, O <: HList, Ops] {
     def ~> : Ops

@@ -36,19 +36,29 @@ object RunResult {
 
   abstract class Aux1 extends Aux2 {
     implicit def forF1[C, Z, R, Out <: Rule[_, _, _]](
-      implicit x: JA[C, Z :: HNil, R, Out]): Aux[C, Z ⇒ R, Out] = `n/a`
+      implicit
+      x: JA[C, Z :: HNil, R, Out]
+    ): Aux[C, Z ⇒ R, Out] = `n/a`
 
     implicit def forF2[C, Y, Z, R, Out <: Rule[_, _, _]](
-      implicit x: JA[C, Y :: Z :: HNil, R, Out]): Aux[C, (Y, Z) ⇒ R, Out] = `n/a`
+      implicit
+      x: JA[C, Y :: Z :: HNil, R, Out]
+    ): Aux[C, (Y, Z) ⇒ R, Out] = `n/a`
 
     implicit def forF3[C, X, Y, Z, R, Out <: Rule[_, _, _]](
-      implicit x: JA[C, X :: Y :: Z :: HNil, R, Out]): Aux[C, (X, Y, Z) ⇒ R, Out] = `n/a`
+      implicit
+      x: JA[C, X :: Y :: Z :: HNil, R, Out]
+    ): Aux[C, (X, Y, Z) ⇒ R, Out] = `n/a`
 
     implicit def forF4[C, W, X, Y, Z, R, Out <: Rule[_, _, _]](
-      implicit x: JA[C, W :: X :: Y :: Z :: HNil, R, Out]): Aux[C, (W, X, Y, Z) ⇒ R, Out] = `n/a`
+      implicit
+      x: JA[C, W :: X :: Y :: Z :: HNil, R, Out]
+    ): Aux[C, (W, X, Y, Z) ⇒ R, Out] = `n/a`
 
     implicit def forF5[C, V, W, X, Y, Z, R, Out <: Rule[_, _, _]](
-      implicit x: JA[C, V :: W :: X :: Y :: Z :: HNil, R, Out]): Aux[C, (V, W, X, Y, Z) ⇒ R, Out] = `n/a`
+      implicit
+      x: JA[C, V :: W :: X :: Y :: Z :: HNil, R, Out]
+    ): Aux[C, (V, W, X, Y, Z) ⇒ R, Out] = `n/a`
   }
 
   abstract class Aux2 {

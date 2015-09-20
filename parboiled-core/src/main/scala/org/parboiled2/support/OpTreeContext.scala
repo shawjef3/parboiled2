@@ -16,6 +16,8 @@
 
 package org.parboiled2.support
 
+import scodec.bits.ByteVector
+
 import scala.annotation.tailrec
 import org.parboiled2._
 
@@ -84,11 +86,9 @@ class OpTreeContext[OpTreeCtx <: reflect.macros.blackbox.Context](val c: OpTreeC
     case q"$lhs.~[..$a]($rhs)($c, $d)"                   ⇒ Sequence(OpTree(lhs), OpTree(rhs))
     case q"$lhs.~!~[..$a]($rhs)($c, $d)"                 ⇒ Cut(OpTree(lhs), OpTree(rhs))
     case q"$lhs.|[..$a]($rhs)($b)"                       ⇒ FirstOf(OpTree(lhs), OpTree(rhs))
-    case q"$a.this.ch($c)"                               ⇒ CharMatch(StateAccessTransformer(c))
-    case q"$a.this.str($s)"                              ⇒ StringMatch(StateAccessTransformer(s))
+    case q"$a.this.vector($s)"                           ⇒ VectorMatch(StateAccessTransformer(s))
+    case q"$a.this.byte($c)"                             ⇒ ByteMatch(StateAccessTransformer(c))
     case q"$a.this.valueMap[$b]($m)($hl)"                ⇒ MapMatch(StateAccessTransformer(m))
-    case q"$a.this.ignoreCase($t)"                       ⇒ IgnoreCase(t)
-    case q"$a.this.predicate($p)"                        ⇒ CharPredicateMatch(StateAccessTransformer(p))
     case q"$a.this.anyOf($s)"                            ⇒ AnyOf(StateAccessTransformer(s))
     case q"$a.this.noneOf($s)"                           ⇒ NoneOf(StateAccessTransformer(s))
     case q"$a.this.ANY"                                  ⇒ ANY
@@ -116,11 +116,9 @@ class OpTreeContext[OpTreeCtx <: reflect.macros.blackbox.Context](val c: OpTreeC
     case q"$a.this.fail($m)"                             ⇒ Fail(StateAccessTransformer(m))
     case q"$a.this.failX[..$b]($m)"                      ⇒ Fail(StateAccessTransformer(m))
     case q"$a.named($name)"                              ⇒ Named(OpTree(a), name)
-    case x @ q"$a.this.str2CharRangeSupport($l).-($r)"   ⇒ CharRange(l, r)
-    case q"$a.this.charAndValue[$t]($b.ArrowAssoc[$t1]($c).->[$t2]($v))($hl)" ⇒
-      Sequence(CharMatch(c), PushAction(v, hl))
-    case q"$a.this.stringAndValue[$t]($b.ArrowAssoc[$t1]($s).->[$t2]($v))($hl)" ⇒
-      Sequence(StringMatch(s), PushAction(v, hl))
+    case x @ q"$a.this.str2ByteRangeSupport($l).-($r)"   ⇒ ToByteRange(l, r)
+    case q"$a.this.byteAndValue[$t]($b.ArrowAssoc[$t1]($c).->[$t2]($v))($hl)" ⇒
+      Sequence(ByteMatch(c), PushAction(v, hl))
     case q"$a.this.rule2ActionOperator[..$b]($r)($o).~>.apply[..$e]($f)($g, support.this.FCapture.apply[$ts])" ⇒
       Sequence(OpTree(r), Action(StateAccessTransformer(f), ts))
     case x @ q"$a.this.rule2WithSeparatedBy[..$b]($base).separatedBy[$d]($sep)" ⇒
@@ -142,7 +140,7 @@ class OpTreeContext[OpTreeCtx <: reflect.macros.blackbox.Context](val c: OpTreeC
     opTreePF.applyOrElse(tree, (t: Tree) ⇒ c.abort(t.pos, "Invalid rule definition: " + t))
 
   def Sequence(lhs: OpTree, rhs: OpTree): Sequence =
-    lhs -> rhs match {
+    lhs → rhs match {
       case (Sequence(lops), Sequence(rops)) ⇒ Sequence(lops ++ rops)
       case (Sequence(lops), _)              ⇒ Sequence(lops :+ rhs)
       case (_, Sequence(ops))               ⇒ Sequence(lhs +: ops)
@@ -169,7 +167,7 @@ class OpTreeContext[OpTreeCtx <: reflect.macros.blackbox.Context](val c: OpTreeC
   }
 
   def FirstOf(lhs: OpTree, rhs: OpTree): FirstOf =
-    lhs -> rhs match {
+    lhs → rhs match {
       case (FirstOf(lops), FirstOf(rops)) ⇒ FirstOf(lops ++ rops)
       case (FirstOf(lops), _)             ⇒ FirstOf(lops :+ rhs)
       case (_, FirstOf(ops))              ⇒ FirstOf(lhs +: ops)
@@ -185,28 +183,28 @@ class OpTreeContext[OpTreeCtx <: reflect.macros.blackbox.Context](val c: OpTreeC
       }"""
   }
 
-  case class CharMatch(charTree: Tree) extends TerminalOpTree {
-    def ruleTraceTerminal = q"$prefix.RuleTrace.CharMatch($charTree)"
+  case class ByteMatch(byteTree: Tree) extends TerminalOpTree {
+    def ruleTraceTerminal = q"$prefix.RuleTrace.ByteMatch($byteTree)"
     def renderInner(wrapped: Boolean): Tree = {
-      val unwrappedTree = q"__psi.cursorChar == $charTree && __psi.advance()"
+      val unwrappedTree = q"__psi.cursorByte == $byteTree && __psi.advance()"
       if (wrapped) q"$unwrappedTree && __psi.updateMaxCursor() || __psi.registerMismatch()" else unwrappedTree
     }
   }
 
-  case class StringMatch(stringTree: Tree) extends OpTree {
+  case class VectorMatch(vectorTree: Tree) extends OpTree {
     final private val autoExpandMaxStringLength = 8
     def render(wrapped: Boolean): Tree = {
-      def unrollUnwrapped(s: String, ix: Int = 0): Tree =
-        if (ix < s.length) q"""
-          if (__psi.cursorChar == ${s charAt ix}) {
+      def unrollUnwrapped(v: ByteVector, ix: Int = 0): Tree =
+        if (ix < v.length) q"""
+          if (__psi.cursorByte == ${v(ix)}) {
             __psi.advance()
-            ${unrollUnwrapped(s, ix + 1)}:Boolean
+            ${unrollUnwrapped(v, ix + 1)}:Boolean
           } else false"""
         else q"true"
-      def unrollWrapped(s: String, ix: Int = 0): Tree =
+      def unrollWrapped(s: ByteVector, ix: Int = 0): Tree =
         if (ix < s.length) {
-          val ch = s charAt ix
-          q"""if (__psi.cursorChar == $ch) {
+          val b = s(ix)
+          q"""if (__psi.cursorByte == $b) {
             __psi.advance()
             __psi.updateMaxCursor()
             ${unrollWrapped(s, ix + 1)}
@@ -215,83 +213,23 @@ class OpTreeContext[OpTreeCtx <: reflect.macros.blackbox.Context](val c: OpTreeC
             catch {
               case $prefix.ParserStateImpl.StartTracingException ⇒
                 import $prefix.RuleTrace._
-                __psi.bubbleUp(NonTerminal(StringMatch($stringTree), -$ix) :: Nil, CharMatch($ch))
+                __psi.bubbleUp(NonTerminal(StringMatch($vectorTree), -$ix) :: Nil, ByteMatch($b))
             }
           }"""
         } else q"true"
 
-      stringTree match {
-        case Literal(Constant(s: String)) if s.length <= autoExpandMaxStringLength ⇒
-          if (s.isEmpty) q"true" else if (wrapped) unrollWrapped(s) else unrollUnwrapped(s)
+      vectorTree match {
+        case Literal(Constant(v: ByteVector)) if v.length <= autoExpandMaxStringLength ⇒
+          if (v.isEmpty) q"true" else if (wrapped) unrollWrapped(v) else unrollUnwrapped(v)
         case _ ⇒
-          if (wrapped) q"__psi.matchStringWrapped($stringTree)"
-          else q"__psi.matchString($stringTree)"
+          if (wrapped) q"__psi.matchVectorWrapped($vectorTree)"
+          else q"__psi.matchVector($vectorTree)"
       }
     }
   }
 
   case class MapMatch(mapTree: Tree) extends OpTree {
     def render(wrapped: Boolean): Tree = if (wrapped) q"__psi.matchMapWrapped($mapTree)" else q"__psi.matchMap($mapTree)"
-  }
-
-  def IgnoreCase(argTree: Tree): OpTree = {
-    val argTypeSymbol = argTree.tpe.typeSymbol
-    if (argTypeSymbol == definitions.CharClass) IgnoreCaseChar(argTree)
-    else if (argTypeSymbol == definitions.StringClass) IgnoreCaseString(argTree)
-    else c.abort(argTree.pos, "Unexpected `ignoreCase` argument type: " + argTypeSymbol)
-  }
-
-  case class IgnoreCaseChar(charTree: Tree) extends TerminalOpTree {
-    def ruleTraceTerminal = q"$prefix.RuleTrace.IgnoreCaseChar($charTree)"
-    def renderInner(wrapped: Boolean): Tree = {
-      val unwrappedTree = q"_root_.java.lang.Character.toLowerCase(__psi.cursorChar) == $charTree && __psi.advance()"
-      if (wrapped) q"$unwrappedTree && __psi.updateMaxCursor() || __psi.registerMismatch()" else unwrappedTree
-    }
-  }
-
-  case class IgnoreCaseString(stringTree: Tree) extends OpTree {
-    final private val autoExpandMaxStringLength = 8
-    def render(wrapped: Boolean): Tree = {
-      def unrollUnwrapped(s: String, ix: Int = 0): Tree =
-        if (ix < s.length) q"""
-          if (_root_.java.lang.Character.toLowerCase(__psi.cursorChar) == ${s charAt ix}) {
-            __psi.advance()
-            ${unrollUnwrapped(s, ix + 1)}
-          } else false"""
-        else q"true"
-      def unrollWrapped(s: String, ix: Int = 0): Tree =
-        if (ix < s.length) {
-          val ch = s charAt ix
-          q"""if (_root_.java.lang.Character.toLowerCase(__psi.cursorChar) == $ch) {
-            __psi.advance()
-            __psi.updateMaxCursor()
-            ${unrollWrapped(s, ix + 1)}
-          } else {
-            try __psi.registerMismatch()
-            catch {
-              case $prefix.ParserStateImpl.StartTracingException ⇒
-                import $prefix.RuleTrace._
-                __psi.bubbleUp(NonTerminal(IgnoreCaseString($stringTree), -$ix) :: Nil, IgnoreCaseChar($ch))
-            }
-          }"""
-        } else q"true"
-
-      stringTree match {
-        case Literal(Constant(s: String)) if s.length <= autoExpandMaxStringLength ⇒
-          if (s.isEmpty) q"true" else if (wrapped) unrollWrapped(s) else unrollUnwrapped(s)
-        case _ ⇒
-          if (wrapped) q"__psi.matchIgnoreCaseStringWrapped($stringTree)"
-          else q"__psi.matchIgnoreCaseString($stringTree)"
-      }
-    }
-  }
-
-  case class CharPredicateMatch(predicateTree: Tree) extends PotentiallyNamedTerminalOpTree(predicateTree) {
-    def ruleTraceTerminal = q"$prefix.RuleTrace.CharPredicateMatch($predicateTree)"
-    def renderInner(wrapped: Boolean): Tree = {
-      val unwrappedTree = q"$predicateTree(__psi.cursorChar) && __psi.advance()"
-      if (wrapped) q"$unwrappedTree && __psi.updateMaxCursor() || __psi.registerMismatch()" else unwrappedTree
-    }
   }
 
   case class AnyOf(stringTree: Tree) extends TerminalOpTree {
@@ -313,7 +251,7 @@ class OpTreeContext[OpTreeCtx <: reflect.macros.blackbox.Context](val c: OpTreeC
   case object ANY extends TerminalOpTree {
     def ruleTraceTerminal = reify(RuleTrace.ANY).tree
     def renderInner(wrapped: Boolean): Tree = {
-      val unwrappedTree = q"__psi.cursorChar != EOI && __psi.advance()"
+      val unwrappedTree = q"__psi.cursorByte != EOI && __psi.advance()"
       if (wrapped) q"$unwrappedTree && __psi.updateMaxCursor() || __psi.registerMismatch()" else unwrappedTree
     }
   }
@@ -473,12 +411,10 @@ class OpTreeContext[OpTreeCtx <: reflect.macros.blackbox.Context](val c: OpTreeC
         !matched"""
       if (wrapped) {
         val base = op match {
-          case x: TerminalOpTree   ⇒ q"$prefix.RuleTrace.NotPredicate.Terminal(${x.ruleTraceTerminal})"
-          case x: RuleCall         ⇒ q"$prefix.RuleTrace.NotPredicate.RuleCall(${x.calleeNameTree})"
-          case x: StringMatch      ⇒ q"""$prefix.RuleTrace.NotPredicate.Named('"' + ${x.stringTree} + '"')"""
-          case x: IgnoreCaseString ⇒ q"""$prefix.RuleTrace.NotPredicate.Named('"' + ${x.stringTree} + '"')"""
-          case x: Named            ⇒ q"$prefix.RuleTrace.NotPredicate.Named(${x.stringTree})"
-          case _                   ⇒ q"$prefix.RuleTrace.NotPredicate.Anonymous"
+          case x: TerminalOpTree ⇒ q"$prefix.RuleTrace.NotPredicate.Terminal(${x.ruleTraceTerminal})"
+          case x: RuleCall       ⇒ q"$prefix.RuleTrace.NotPredicate.RuleCall(${x.calleeNameTree})"
+          case x: Named          ⇒ q"$prefix.RuleTrace.NotPredicate.Named(${x.stringTree})"
+          case _                 ⇒ q"$prefix.RuleTrace.NotPredicate.Anonymous"
         }
         q"""
         var matchEnd = 0
@@ -630,25 +566,23 @@ class OpTreeContext[OpTreeCtx <: reflect.macros.blackbox.Context](val c: OpTreeC
     def renderInner(wrapped: Boolean) = call.asInstanceOf[OpTreeCall].t.render(wrapped)
   }
 
-  def CharRange(lowerTree: Tree, upperTree: Tree): CharacterRange = {
-    val (lower, upper) = lowerTree -> upperTree match {
-      case (Literal(Constant(l: String)), Literal(Constant(u: String))) ⇒ l -> u
-      case _ ⇒ c.abort(lowerTree.pos, "Character ranges must be specified with string literals")
+  def ToByteRange(lowerTree: Tree, upperTree: Tree): ByteRange = {
+    val (lower, upper) = lowerTree → upperTree match {
+      case (Literal(Constant(l: String)), Literal(Constant(u: String))) ⇒ l → u
+      case _ ⇒ c.abort(lowerTree.pos, "Byte ranges must be specified with string literals")
     }
-    if (lower.length != 1) c.abort(lowerTree.pos, "lower bound must be a single char string")
-    if (upper.length != 1) c.abort(upperTree.pos, "upper bound must be a single char string")
-    val lowerBoundChar = lower.charAt(0)
-    val upperBoundChar = upper.charAt(0)
-    if (lowerBoundChar > upperBoundChar) c.abort(lowerTree.pos, "lower bound must not be > upper bound")
-    CharacterRange(lowerBoundChar, upperBoundChar)
+    val lowerBoundByte = lower.toByte
+    val upperBoundByte = upper.toByte
+    if (lowerBoundByte > upperBoundByte) c.abort(lowerTree.pos, "lower bound must not be > upper bound")
+    ByteRange(lowerBoundByte, upperBoundByte)
   }
 
-  case class CharacterRange(lowerBound: Char, upperBound: Char) extends TerminalOpTree {
-    def ruleTraceTerminal = q"$prefix.RuleTrace.CharRange($lowerBound, $upperBound)"
+  case class ByteRange(lowerBound: Byte, upperBound: Byte) extends TerminalOpTree {
+    def ruleTraceTerminal = q"$prefix.RuleTrace.ByteRange($lowerBound, $upperBound)"
     def renderInner(wrapped: Boolean): Tree = {
       val unwrappedTree = q"""
-        val char = __psi.cursorChar
-        $lowerBound <= char && char <= $upperBound && __psi.advance()"""
+        val byte = __psi.cursorByte
+        $lowerBound <= byte && byte <= $upperBound && __psi.advance()"""
       if (wrapped) q"$unwrappedTree && __psi.updateMaxCursor() || __psi.registerMismatch()" else unwrappedTree
     }
   }
@@ -700,11 +634,12 @@ class OpTreeContext[OpTreeCtx <: reflect.macros.blackbox.Context](val c: OpTreeC
   /////////////////////////////////// helpers ////////////////////////////////////
 
   class Collector(
-    val valBuilder: Tree,
-    val popToBuilder: Tree,
+    val valBuilder:        Tree,
+    val popToBuilder:      Tree,
     val pushBuilderResult: Tree,
-    val pushSomePop: Tree,
-    val pushNone: Tree)
+    val pushSomePop:       Tree,
+    val pushNone:          Tree
+  )
 
   lazy val rule0Collector = {
     val unit = q"()"
@@ -716,7 +651,8 @@ class OpTreeContext[OpTreeCtx <: reflect.macros.blackbox.Context](val c: OpTreeC
     popToBuilder = q"builder += __psi.valueStack.pop()",
     pushBuilderResult = q"__psi.valueStack.push(builder.result()); true",
     pushSomePop = q"__psi.valueStack.push(Some(__psi.valueStack.pop()))",
-    pushNone = q"__psi.valueStack.push(None)")
+    pushNone = q"__psi.valueStack.push(None)"
+  )
 
   type Separator = Boolean ⇒ Tree
 

@@ -47,31 +47,43 @@ sealed trait Join[C, I <: HList, L <: HList, R] {
 }
 object Join {
   implicit def join[C, I <: HList, L <: HList, R, Out0 <: Rule[_, _, _]](
-    implicit x: Aux[C, I, L, R, HNil, Out0]): Join[C, I, L, R] { type Out = Out0 } = `n/a`
+    implicit
+    x: Aux[C, I, L, R, HNil, Out0]
+  ): Join[C, I, L, R] { type Out = Out0 } = `n/a`
 
   sealed trait Aux[C, I <: HList, L <: HList, R, Acc <: HList, Out <: Rule[_, _, _]]
   object Aux extends Aux1 {
     // if R == Unit convert to HNil
     implicit def forUnit[C, I <: HList, L <: HList, Acc <: HList, Out <: Rule[_, _, _]](
-      implicit x: Aux[C, I, L, HNil, Acc, Out]): Aux[C, I, L, Unit, Acc, Out] = `n/a`
+      implicit
+      x: Aux[C, I, L, HNil, Acc, Out]
+    ): Aux[C, I, L, Unit, Acc, Out] = `n/a`
 
     // if R <: HList and L non-empty move head of L to Acc
     implicit def iter2[C, I <: HList, H, T <: HList, R <: HList, Acc <: HList, Out <: Rule[_, _, _]](
-      implicit x: Aux[C, I, T, R, H :: Acc, Out]): Aux[C, I, H :: T, R, Acc, Out] = `n/a`
+      implicit
+      x: Aux[C, I, T, R, H :: Acc, Out]
+    ): Aux[C, I, H :: T, R, Acc, Out] = `n/a`
 
     // if R <: HList and L empty set Out = reversePrepend Acc before R
     implicit def terminate[C, I <: HList, R <: HList, Acc <: HList, Out <: HList](
-      implicit x: ReversePrepend.Aux[Acc, R, Out]): Aux[C, I, HNil, R, Acc, Rule[C, I, Out]] = `n/a`
+      implicit
+      x: ReversePrepend.Aux[Acc, R, Out]
+    ): Aux[C, I, HNil, R, Acc, Rule[C, I, Out]] = `n/a`
 
     // if R <: Rule return tailswitches result
     implicit def terminateRule[C, I <: HList, L <: HList, I2 <: HList, O2 <: HList, In <: HList, Out <: HList, Ctx <: C](
-      implicit i: TailSwitch.Aux[I2, I2, L, L, I, HNil, In],
-      o: TailSwitch.Aux[L, L, I2, I2, O2, HNil, Out]): Aux[C, I, L, Rule[Ctx, I2, O2], HNil, Rule[Ctx, In, Out]] = `n/a`
+      implicit
+      i: TailSwitch.Aux[I2, I2, L, L, I, HNil, In],
+      o: TailSwitch.Aux[L, L, I2, I2, O2, HNil, Out]
+    ): Aux[C, I, L, Rule[Ctx, I2, O2], HNil, Rule[Ctx, In, Out]] = `n/a`
   }
 
   abstract class Aux1 {
     // convert R to R :: HNil
     implicit def forAny[C, I <: HList, L <: HList, R, Out <: Rule[_, _, _]](
-      implicit x: Aux[C, I, L, R :: HNil, HNil, Out]): Aux[C, I, L, R, HNil, Out] = `n/a`
+      implicit
+      x: Aux[C, I, L, R :: HNil, HNil, Out]
+    ): Aux[C, I, L, R, HNil, Out] = `n/a`
   }
 }

@@ -55,21 +55,26 @@ abstract class Parser extends RuleTypes
 
   class RuleCreator0(val name: String) {
     def apply[Ctx <: Context, I <: HList, O <: HList](
-      r: Rule[Ctx, I, O]): Rule[Ctx, I, O] = macro Macros.rule0[Ctx, I, O]
+      r: Rule[Ctx, I, O]
+    ): Rule[Ctx, I, O] = macro Macros.rule0[Ctx, I, O]
     def debug[Ctx <: Context, I <: HList, O <: HList](
-      r: Rule[Ctx, I, O]): Rule[Ctx, I, O] = macro Macros.debugRule0[Ctx, I, O]
+      r: Rule[Ctx, I, O]
+    ): Rule[Ctx, I, O] = macro Macros.debugRule0[Ctx, I, O]
   }
   class RuleCreator1[A](val name: String) {
     def apply[Ctx <: Context, I <: HList, O <: HList](
-      r: A ⇒ Rule[Ctx, I, O]): Rule1X[Ctx, A, I, O] = macro Macros.rule1[Ctx, A, I, O]
+      r: A ⇒ Rule[Ctx, I, O]
+    ): Rule1X[Ctx, A, I, O] = macro Macros.rule1[Ctx, A, I, O]
   }
   class RuleCreator2[A, B](val name: String) {
     def apply[Ctx <: Context, I <: HList, O <: HList](
-      r: (A, B) ⇒ Rule[Ctx, I, O]): Rule2X[Ctx, A, B, I, O] = macro Macros.rule2[Ctx, A, B, I, O]
+      r: (A, B) ⇒ Rule[Ctx, I, O]
+    ): Rule2X[Ctx, A, B, I, O] = macro Macros.rule2[Ctx, A, B, I, O]
   }
   class RuleCreator3[A, B, C](val name: String) {
     def apply[Ctx <: Context, I <: HList, O <: HList](
-      r: (A, B, C) ⇒ Rule[Ctx, I, O]): Rule3X[Ctx, A, B, C, I, O] = macro Macros.rule3[Ctx, A, B, C, I, O]
+      r: (A, B, C) ⇒ Rule[Ctx, I, O]
+    ): Rule3X[Ctx, A, B, C, I, O] = macro Macros.rule3[Ctx, A, B, C, I, O]
   }
 }
 

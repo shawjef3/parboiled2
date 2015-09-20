@@ -16,12 +16,16 @@
 
 package org.parboiled2
 
+import scodec.bits.ByteVector
+
 import scala.annotation.tailrec
 import scala.collection.immutable
 
-case class ParseError(position: Position,
-                      principalPosition: Position,
-                      traces: immutable.Seq[RuleTrace]) extends RuntimeException {
+case class ParseError(
+  position:          Position,
+  principalPosition: Position,
+  traces:            immutable.Seq[RuleTrace]
+) extends RuntimeException {
   require(principalPosition.index >= position.index, "principalPosition must be > position")
   def format(input: ParserInput): String = format(input, new ErrorFormatter())
   def format(input: ParserInput, formatter: ErrorFormatter): String = formatter.format(this, input)
@@ -49,7 +53,7 @@ object Position {
   def apply(index: Int, input: ParserInput): Position = {
     @tailrec def rec(ix: Int, line: Int, col: Int): Position =
       if (ix >= index) Position(index, line, col)
-      else if (ix >= input.length || input.charAt(ix) != '\n') rec(ix + 1, line, col + 1)
+      else if (ix >= input.length || input.byteAt(ix) != '\n') rec(ix + 1, line, col + 1)
       else rec(ix + 1, line + 1, 1)
     rec(ix = 0, line = 1, col = 1)
   }
@@ -119,8 +123,7 @@ object RuleTrace {
   case object Capture extends NonTerminalKey
   case object Cut extends NonTerminalKey
   case object FirstOf extends NonTerminalKey
-  final case class IgnoreCaseString(string: String) extends NonTerminalKey
-  final case class MapMatch(map: Map[String, Any]) extends NonTerminalKey
+  final case class MapMatch(map: Map[ByteVector, Any]) extends NonTerminalKey
   final case class Named(name: String) extends NonTerminalKey
   case object OneOrMore extends NonTerminalKey
   case object Optional extends NonTerminalKey
@@ -128,20 +131,19 @@ object RuleTrace {
   case object RuleCall extends NonTerminalKey
   case object Run extends NonTerminalKey
   case object Sequence extends NonTerminalKey
-  final case class StringMatch(string: String) extends NonTerminalKey
+  final case class VectorMatch(vector: ByteVector) extends NonTerminalKey
   final case class Times(min: Int, max: Int) extends NonTerminalKey
   case object ZeroOrMore extends NonTerminalKey
 
   sealed trait Terminal
   case object ANY extends Terminal
   case object MISMATCH extends Terminal
-  final case class AnyOf(string: String) extends Terminal
-  final case class CharMatch(char: Char) extends Terminal
-  final case class CharPredicateMatch(predicate: CharPredicate) extends Terminal
-  final case class CharRange(from: Char, to: Char) extends Terminal
+  final case class AnyOf(vector: ByteVector) extends Terminal
+  final case class ByteMatch(char: Byte) extends Terminal
+  final case class BytePredicateMatch(predicate: BytePredicate) extends Terminal
+  final case class ByteRange(from: Byte, to: Byte) extends Terminal
   final case class Fail(expected: String) extends Terminal
-  final case class IgnoreCaseChar(char: Char) extends Terminal
-  final case class NoneOf(string: String) extends Terminal
+  final case class NoneOf(vector: ByteVector) extends Terminal
   final case class NotPredicate(base: NotPredicate.Base, baseMatchLength: Int) extends Terminal
   case object SemanticPredicate extends Terminal
 

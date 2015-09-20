@@ -16,6 +16,8 @@
 
 package org.parboiled2
 
+import scodec.bits.ByteVector
+
 import scala.annotation.tailrec
 import scala.collection.immutable.VectorBuilder
 import scala.util.control.{ NonFatal, NoStackTrace }
@@ -43,7 +45,7 @@ sealed abstract class ParserState[Context] {
    * The next (yet unmatched) input character, i.e. the one at the `cursor` index.
    * Identical to `if (cursor < input.length) input.charAt(cursor) else EOI` but more efficient.
    */
-  def cursorChar: Char
+  def cursorByte: Byte
 
   /**
    * Returns the last character that was matched, i.e. the one at index cursor - 1
@@ -51,7 +53,7 @@ sealed abstract class ParserState[Context] {
    * i.e. depending on the ParserInput implementation you might get an exception
    * when calling this method before any character was matched by the parser.
    */
-  def lastChar: Char
+  def lastByte: Byte
 
   /**
    * Returns the character at the input index with the given delta to the cursor.
@@ -59,14 +61,14 @@ sealed abstract class ParserState[Context] {
    * i.e. depending on the ParserInput implementation you might get an exception
    * when calling this method before any character was matched by the parser.
    */
-  def charAt(offset: Int): Char
+  def byteAt(offset: Int): Byte
 
   /**
    * Same as `charAt` but range-checked.
    * Returns the input character at the index with the given offset from the cursor.
-   * If this index is out of range the method returns `EOI`.
+   * If this index is out of range the method returns `EOI`, which is null.
    */
-  def charAtRC(offset: Int): Char
+  def byteAtRC(offset: Int): java.lang.Byte
 
   /**
    * Allows "raw" (i.e. untyped) access to the `ValueStack`.
@@ -83,7 +85,8 @@ final class ParserStateImpl[C](val input: ParserInput, val ctx: C) extends Parse
   import ParserStateImpl._
 
   // the char at the current input index
-  private var _cursorChar: Char = _
+  // null for EOI
+  private var _cursorByte: java.lang.Byte = _
 
   // the index of the current input char
   private var _cursor: Int = _
@@ -95,13 +98,13 @@ final class ParserStateImpl[C](val input: ParserInput, val ctx: C) extends Parse
   private var phase: ErrorAnalysisPhase = _
 
   def cursor: Int = _cursor
-  def cursorChar: Char = _cursorChar
-  def lastChar: Char = charAt(-1)
+  def cursorByte: Byte = _cursorByte
+  def lastByte: Byte = byteAt(-1)
   def valueStack: ValueStack = _valueStack
-  def charAt(offset: Int): Char = input.charAt(_cursor + offset)
-  def charAtRC(offset: Int): Char = {
+  def byteAt(offset: Int): Byte = input.byteAt(_cursor + offset)
+  def byteAtRC(offset: Int): java.lang.Byte = {
     val ix = _cursor + offset
-    if (0 <= ix && ix < input.length) input.charAt(ix) else EOI
+    if (0 <= ix && ix < input.length) input.byteAt(ix) else null
   }
 
   def inErrorAnalysis = phase ne null
@@ -112,7 +115,7 @@ final class ParserStateImpl[C](val input: ParserInput, val ctx: C) extends Parse
     if (c < max) {
       c += 1
       _cursor = c
-      _cursorChar = if (c == max) EOI else input charAt c
+      _cursorByte = if (c == max) null else input byteAt c
     }
     true
   }
@@ -125,11 +128,11 @@ final class ParserStateImpl[C](val input: ParserInput, val ctx: C) extends Parse
     true
   }
 
-  def saveState: Mark = new Mark((_cursor.toLong << 32) + (_cursorChar.toLong << 16) + valueStack.size)
+  def saveState: Mark = new Mark((_cursor.toLong << 32) + (_cursorByte.toLong << 16) + valueStack.size)
 
   def restoreState(mark: Mark): Unit = {
     _cursor = (mark.value >>> 32).toInt
-    _cursorChar = ((mark.value >>> 16) & 0x000000000000FFFF).toChar
+    _cursorByte = ((mark.value >>> 16) & 0x00000000000000FF).toByte
     valueStack.size = (mark.value & 0x000000000000FFFF).toInt
   }
 
@@ -212,71 +215,47 @@ final class ParserStateImpl[C](val input: ParserInput, val ctx: C) extends Parse
     true
   }
 
-  @tailrec def matchString(string: String, ix: Int = 0): Boolean =
-    if (ix < string.length)
-      if (_cursorChar == string.charAt(ix)) {
+  @tailrec def matchVector(vector: ByteVector, ix: Int = 0): Boolean =
+    if (ix < vector.length)
+      if (_cursorByte == vector(ix)) {
         advance()
-        matchString(string, ix + 1)
+        matchVector(vector, ix + 1)
       } else false
     else true
 
-  @tailrec def matchStringWrapped(string: String, ix: Int = 0): Boolean =
-    if (ix < string.length)
-      if (_cursorChar == string.charAt(ix)) {
+  @tailrec def matchVectorWrapped(vector: ByteVector, ix: Int = 0): Boolean =
+    if (ix < vector.length)
+      if (_cursorByte == vector(ix)) {
         advance()
         updateMaxCursor()
-        matchStringWrapped(string, ix + 1)
+        matchVectorWrapped(vector, ix + 1)
       } else {
         try registerMismatch()
         catch {
           case StartTracingException ⇒
             import RuleTrace._
-            bubbleUp(NonTerminal(StringMatch(string), -ix) :: Nil, CharMatch(string charAt ix))
-        }
-      }
-    else true
-
-  @tailrec def matchIgnoreCaseString(string: String, ix: Int = 0): Boolean =
-    if (ix < string.length)
-      if (Character.toLowerCase(_cursorChar) == string.charAt(ix)) {
-        advance()
-        matchIgnoreCaseString(string, ix + 1)
-      } else false
-    else true
-
-  @tailrec def matchIgnoreCaseStringWrapped(string: String, ix: Int = 0): Boolean =
-    if (ix < string.length)
-      if (Character.toLowerCase(_cursorChar) == string.charAt(ix)) {
-        advance()
-        updateMaxCursor()
-        matchIgnoreCaseStringWrapped(string, ix + 1)
-      } else {
-        try registerMismatch()
-        catch {
-          case StartTracingException ⇒
-            import RuleTrace._
-            bubbleUp(NonTerminal(IgnoreCaseString(string), -ix) :: Nil, IgnoreCaseChar(string charAt ix))
+            bubbleUp(NonTerminal(VectorMatch(vector), -ix) :: Nil, ByteMatch(vector(ix)))
         }
       }
     else true
 
   @tailrec def matchAnyOf(string: String, ix: Int = 0): Boolean =
     if (ix < string.length)
-      if (string.charAt(ix) == _cursorChar) advance()
+      if (string.charAt(ix) == _cursorByte) advance()
       else matchAnyOf(string, ix + 1)
     else false
 
   @tailrec def matchNoneOf(string: String, ix: Int = 0): Boolean =
     if (ix < string.length)
-      _cursorChar != EOI && string.charAt(ix) != _cursorChar && matchNoneOf(string, ix + 1)
+      _cursorByte != EOI && string.charAt(ix) != _cursorByte && matchNoneOf(string, ix + 1)
     else advance()
 
-  def matchMap(m: Map[String, Any]): Boolean = {
+  def matchMap(m: Map[ByteVector, Any]): Boolean = {
     val keys = m.keysIterator
     while (keys.hasNext) {
       val mark = saveState
       val key = keys.next()
-      if (matchString(key)) {
+      if (matchVector(key)) {
         push(m(key))
         return true
       } else restoreState(mark)
@@ -284,14 +263,14 @@ final class ParserStateImpl[C](val input: ParserInput, val ctx: C) extends Parse
     false
   }
 
-  def matchMapWrapped(m: Map[String, Any]): Boolean = {
+  def matchMapWrapped(m: Map[ByteVector, Any]): Boolean = {
     val keys = m.keysIterator
     val start = _cursor
     try {
       while (keys.hasNext) {
         val mark = saveState
         val key = keys.next()
-        if (matchStringWrapped(key)) {
+        if (matchVectorWrapped(key)) {
           push(m(key))
           return true
         } else restoreState(mark)
@@ -317,10 +296,12 @@ final class ParserStateImpl[C](val input: ParserInput, val ctx: C) extends Parse
     }
   }
 
-  def run[L <: HList](rule: RuleImpl[C],
-                      errorTraceCollectionLimit: Int,
-                      initialValueStackSize: Int,
-                      maxValueStackSize: Int)(implicit scheme: DeliveryScheme[L]): scheme.Result = {
+  def run[L <: HList](
+    rule:                      RuleImpl[C],
+    errorTraceCollectionLimit: Int,
+    initialValueStackSize:     Int,
+    maxValueStackSize:         Int
+  )(implicit scheme: DeliveryScheme[L]): scheme.Result = {
     def runRule(): Boolean = {
       _cursor = -1
       advance()
@@ -362,8 +343,9 @@ final class ParserStateImpl[C](val input: ParserInput, val ctx: C) extends Parse
 
     @tailrec
     def phase4_collectRuleTraces(reportedErrorIndex: Int, principalErrorIndex: Int, reportQuiet: Boolean)(
-      phase3: CollectingRuleTraces = new CollectingRuleTraces(reportedErrorIndex, reportQuiet),
-      traces: VectorBuilder[RuleTrace] = new VectorBuilder): ParseError = {
+      phase3: CollectingRuleTraces     = new CollectingRuleTraces(reportedErrorIndex, reportQuiet),
+      traces: VectorBuilder[RuleTrace] = new VectorBuilder
+    ): ParseError = {
 
       def done = {
         val principalErrorPos = Position(principalErrorIndex, input)
@@ -439,8 +421,9 @@ object ParserStateImpl {
   // or -1 if no atomic rule fails with a mismatch at the principal error index
   class EstablishingReportedErrorIndex(
       private var _principalErrorIndex: Int,
-      var currentAtomicStart: Int = Int.MinValue,
-      var maxAtomicErrorStart: Int = Int.MinValue) extends ErrorAnalysisPhase {
+      var currentAtomicStart:           Int = Int.MinValue,
+      var maxAtomicErrorStart:          Int = Int.MinValue
+  ) extends ErrorAnalysisPhase {
     def reportedErrorIndex = if (maxAtomicErrorStart >= 0) maxAtomicErrorStart else _principalErrorIndex
     def applyOffset(offset: Int) = {
       _principalErrorIndex -= offset
@@ -453,8 +436,8 @@ object ParserStateImpl {
   // in which case we need to report them even though they are marked as "quiet"
   class DetermineReportQuiet(
       private var _minErrorIndex: Int, // the smallest index at which a mismatch triggers a StartTracingException
-      var inQuiet: Boolean = false // are we currently in a quiet rule?
-      ) extends ErrorAnalysisPhase {
+      var inQuiet:                Boolean = false // are we currently in a quiet rule?
+  ) extends ErrorAnalysisPhase {
     def minErrorIndex = _minErrorIndex
     def applyOffset(offset: Int) = _minErrorIndex -= offset
   }
@@ -462,11 +445,11 @@ object ParserStateImpl {
   // collect the traces of all mismatches happening at an index >= minErrorIndex (the reported error index)
   // by throwing a StartTracingException which gets turned into a TracingBubbleException by the terminal rule
   class CollectingRuleTraces(
-      var minErrorIndex: Int, // the smallest index at which a mismatch triggers a StartTracingException
-      val reportQuiet: Boolean, // do we need to trace mismatches from quiet rules?
-      val traceNr: Int = 0, // the zero-based index number of the RuleTrace we are currently building
-      var errorMismatches: Int = 0 // the number of times we have already seen a mismatch at >= minErrorIndex
-      ) extends ErrorAnalysisPhase {
+      var minErrorIndex:   Int, // the smallest index at which a mismatch triggers a StartTracingException
+      val reportQuiet:     Boolean, // do we need to trace mismatches from quiet rules?
+      val traceNr:         Int     = 0, // the zero-based index number of the RuleTrace we are currently building
+      var errorMismatches: Int     = 0 // the number of times we have already seen a mismatch at >= minErrorIndex
+  ) extends ErrorAnalysisPhase {
     def applyOffset(offset: Int) = minErrorIndex -= offset
   }
 }

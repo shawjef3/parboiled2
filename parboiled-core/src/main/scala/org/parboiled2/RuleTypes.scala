@@ -59,13 +59,17 @@ sealed trait Rule[-Ctx, -I <: HList, +O <: HList] {
 
   @compileTimeOnly("Calls to `~` must be inside `rule` macro")
   def ~[C <: Ctx, I2 <: HList, O2 <: HList](that: Rule[C, I2, O2])(
-    implicit i: TailSwitch[I2, O @uncheckedVariance, I @uncheckedVariance],
-    o: TailSwitch[O @uncheckedVariance, I2, O2]): Rule[C, i.Out, o.Out] = `n/a`
+    implicit
+    i: TailSwitch[I2, O @uncheckedVariance, I @uncheckedVariance],
+    o: TailSwitch[O @uncheckedVariance, I2, O2]
+  ): Rule[C, i.Out, o.Out] = `n/a`
 
   @compileTimeOnly("Calls to `~!~` must be inside `rule` macro")
   def ~!~[C <: Ctx, I2 <: HList, O2 <: HList](that: Rule[C, I2, O2])(
-    implicit i: TailSwitch[I2, O @uncheckedVariance, I @uncheckedVariance],
-    o: TailSwitch[O @uncheckedVariance, I2, O2]): Rule[C, i.Out, o.Out] = `n/a`
+    implicit
+    i: TailSwitch[I2, O @uncheckedVariance, I @uncheckedVariance],
+    o: TailSwitch[O @uncheckedVariance, I2, O2]
+  ): Rule[C, i.Out, o.Out] = `n/a`
 
   @compileTimeOnly("Calls to `|` must be inside `rule` macro")
   def |[C <: Ctx, I2 <: I, O2 >: O <: HList](that: Rule[C, I2, O2])(implicit ev: CanBeOred[O2]): Rule[C, I2, O2] = `n/a`
@@ -104,12 +108,15 @@ sealed trait Rule[-Ctx, -I <: HList, +O <: HList] {
    *
    * @return the parsing result according to the implicitly selected DeliveryScheme
    */
-  final def run(input: ParserInput,
-                errorTraceCollectionLimit: Int = 24,
-                initialValueStackSize: Int = 16,
-                maxValueStackSize: Int = 1024)(implicit scheme: DeliveryScheme[O @uncheckedVariance],
-                                               ev: IsHNil[I @uncheckedVariance],
-                                               dv: DefaultValue[Ctx]): scheme.Result =
+  final def run(
+    input:                     ParserInput,
+    errorTraceCollectionLimit: Int         = 24,
+    initialValueStackSize:     Int         = 16,
+    maxValueStackSize:         Int         = 1024
+  )(implicit
+    scheme: DeliveryScheme[O @uncheckedVariance],
+    ev: IsHNil[I @uncheckedVariance],
+    dv: DefaultValue[Ctx]): scheme.Result =
     runWithContext(input, dv.defaultValue, errorTraceCollectionLimit, initialValueStackSize, maxValueStackSize)
 
   /**
@@ -126,12 +133,15 @@ sealed trait Rule[-Ctx, -I <: HList, +O <: HList] {
    *
    * @return the parsing result according to the implicitly selected DeliveryScheme
    */
-  final def runWithContext(input: ParserInput,
-                           ctx: Ctx,
-                           errorTraceCollectionLimit: Int = 24,
-                           initialValueStackSize: Int = 16,
-                           maxValueStackSize: Int = 1024)(implicit scheme: DeliveryScheme[O @uncheckedVariance],
-                                                          ev: IsHNil[I @uncheckedVariance]): scheme.Result = {
+  final def runWithContext(
+    input:                     ParserInput,
+    ctx:                       Ctx,
+    errorTraceCollectionLimit: Int         = 24,
+    initialValueStackSize:     Int         = 16,
+    maxValueStackSize:         Int         = 1024
+  )(implicit
+    scheme: DeliveryScheme[O @uncheckedVariance],
+    ev: IsHNil[I @uncheckedVariance]): scheme.Result = {
     require(initialValueStackSize >= 0, "`initialValueStackSize` must be >= 0")
     require(initialValueStackSize >= 0, "`initialValueStackSize` must be >= 0")
     require(maxValueStackSize <= 65536, "`maxValueStackSize` > 2^16 is not supported") // due to current snapshot design
