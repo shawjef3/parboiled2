@@ -115,17 +115,18 @@ object BytePredicate {
     implicit def fromPredicate(predicate: Byte ⇒ Boolean): ApplyMagnet = new ApplyMagnet(from(predicate))
     implicit def fromByteVector(vector: ByteVector): ApplyMagnet = fromBytes(vector.toSeq)
     implicit def fromIntegral[I: Integral](b: I*): ApplyMagnet = fromBytes(ByteVector(b: _*).toSeq)
+    implicit def fromRange(range: Range): ApplyMagnet = new ApplyMagnet(new RangeBased(range))
     implicit def fromBytes(vector: Seq[Byte]): ApplyMagnet =
       vector match {
-        case r: NumericRange[Byte] ⇒ new ApplyMagnet(new RangeBased(r))
+        case r: NumericRange[Byte] ⇒ new ApplyMagnet(new RangeBased(new Range(r.start, r.end, r.step)))
         case _                     ⇒ new ApplyMagnet(new ArrayBased(vector.toArray))
       }
   }
 
   ///////////////////////// PRIVATE ////////////////////////////
 
-  class RangeBased private[BytePredicate] (private val range: NumericRange[Byte]) extends BytePredicate {
-    def apply(c: Byte): Boolean = range contains c
+  class RangeBased private[BytePredicate] (private val range: Range) extends BytePredicate {
+    def apply(c: Byte): Boolean = range contains c.toInt
 
     def ++(that: BytePredicate): BytePredicate = that match {
       case Empty ⇒ this
